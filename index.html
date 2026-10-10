@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ship Hull Stability &amp; Metacenter Analyzer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen font-mono">
+  <div class="max-w-5xl mx-auto p-4">
+    <header class="mb-6">
+      <h1 class="text-2xl font-bold text-blue-400">Ship Hull Stability &amp; Metacenter Analyzer</h1>
+      <p class="text-gray-400 text-sm mt-1">Initial transverse stability for simplified box hull — KB, BM, KM, GM, GZ curve</p>
+    </header>
+
+    <!-- Inputs -->
+    <section class="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-5" aria-labelledby="input-heading">
+      <h2 id="input-heading" class="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-4">Hull Parameters</h2>
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div>
+          <label for="beam" class="block text-xs text-gray-500 mb-1">Beam B (m)</label>
+          <input id="beam" type="number" step="0.01" min="0.1" max="100" value="20"
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            aria-label="Beam width in metres" />
+        </div>
+        <div>
+          <label for="draft" class="block text-xs text-gray-500 mb-1">Draft T (m)</label>
+          <input id="draft" type="number" step="0.01" min="0.01" max="50" value="6"
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            aria-label="Draft in metres" />
+        </div>
+        <div>
+          <label for="length" class="block text-xs text-gray-500 mb-1">Length L (m)</label>
+          <input id="length" type="number" step="0.1" min="1" max="500" value="80"
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            aria-label="Ship length in metres" />
+        </div>
+        <div>
+          <label for="cb" class="block text-xs text-gray-500 mb-1">Block Coeff Cb</label>
+          <input id="cb" type="number" step="0.001" min="0.1" max="1.0" value="0.85"
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            aria-label="Block coefficient" />
+        </div>
+        <div>
+          <label for="vcg" class="block text-xs text-gray-500 mb-1">VCG (m from keel)</label>
+          <input id="vcg" type="number" step="0.01" min="0" max="50" value="7"
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            aria-label="Vertical centre of gravity from keel" />
+        </div>
+      </div>
+      <div class="mt-3">
+        <button id="btn-calc"
+          class="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-semibold text-sm transition"
+          aria-label="Analyse hull stability">
+          Analyse Stability
+        </button>
+      </div>
+    </section>
+
+    <!-- Error -->
+    <div id="error-msg" class="hidden mb-4 p-3 bg-red-900 border border-red-700 rounded-lg text-red-300 text-sm" role="alert" aria-live="assertive"></div>
+
+    <!-- Results -->
+    <section id="results-section" class="hidden">
+      <!-- Status badge -->
+      <div id="status-badge" class="mb-4 px-5 py-4 rounded-xl text-center text-xl font-bold" aria-live="polite"></div>
+
+      <!-- Key results grid -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5" aria-live="polite" aria-label="Stability results">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 text-center">
+          <div class="text-xs text-gray-500 uppercase mb-1">KB</div>
+          <div id="res-kb" class="text-2xl font-bold text-blue-300">—</div>
+          <div class="text-xs text-gray-600 mt-1">Centre of Buoyancy (m)</div>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 text-center">
+          <div class="text-xs text-gray-500 uppercase mb-1">BM</div>
+          <div id="res-bm" class="text-2xl font-bold text-cyan-300">—</div>
+          <div class="text-xs text-gray-600 mt-1">Metacentric radius (m)</div>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 text-center">
+          <div class="text-xs text-gray-500 uppercase mb-1">KM</div>
+          <div id="res-km" class="text-2xl font-bold text-indigo-300">—</div>
+          <div class="text-xs text-gray-600 mt-1">Metacentre height (m)</div>
+        </div>
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 text-center">
+          <div class="text-xs text-gray-500 uppercase mb-1">GM</div>
+          <div id="res-gm" class="text-2xl font-bold" id="res-gm">—</div>
+          <div class="text-xs text-gray-600 mt-1">Metacentric height (m)</div>
+        </div>
+      </div>
+
+      <!-- Secondary results -->
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 mb-5">
+        <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">Detailed Results</h2>
+        <table class="w-full text-sm" aria-label="Detailed stability results">
+          <thead>
+            <tr class="text-xs text-gray-500 uppercase border-b border-gray-800">
+              <th class="text-left py-2" scope="col">Parameter</th>
+              <th class="text-left py-2" scope="col">Formula</th>
+              <th class="text-right py-2" scope="col">Value</th>
+              <th class="text-left py-2 pl-3" scope="col">Unit</th>
+            </tr>
+          </thead>
+          <tbody id="detail-tbody" class="divide-y divide-gray-800 text-gray-300"></tbody>
+        </table>
+      </div>
+
+      <!-- SVG diagrams -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+        <!-- Cross-section sketch -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-2">Hull Cross-Section</h2>
+          <svg id="hull-svg" viewBox="0 0 280 240" width="100%" aria-label="Hull cross-section diagram" role="img"></svg>
+        </div>
+        <!-- GZ curve -->
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+          <h2 class="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-2">GZ Righting Lever Curve (0–45°)</h2>
+          <svg id="gz-svg" viewBox="0 0 280 220" width="100%" aria-label="GZ righting lever curve" role="img"></svg>
+        </div>
+      </div>
+
+      <!-- Formula reference -->
+      <details class="bg-gray-900 border border-gray-800 rounded-xl p-4 text-sm text-gray-400">
+        <summary class="cursor-pointer text-gray-300 font-semibold">Formula Reference</summary>
+        <div class="mt-3 space-y-1">
+          <p><strong class="text-gray-200">KB</strong> = T / 2 (vertical centre of buoyancy for box hull)</p>
+          <p><strong class="text-gray-200">BM</strong> = I / V = (L·B³/12) / (L·B·T·Cb) = B² / (12·T) for box hull (Cb=1)</p>
+          <p><strong class="text-gray-200">BM (general)</strong> = B² / (12·T·Cb) (approximate for non-box hulls)</p>
+          <p><strong class="text-gray-200">KM</strong> = KB + BM</p>
+          <p><strong class="text-gray-200">GM</strong> = KM − VCG</p>
+          <p><strong class="text-gray-200">GZ</strong> ≈ GM · sin θ (linearised, small-angle approximation)</p>
+          <p><strong class="text-gray-200">Displacement</strong> ∇ = L · B · T · Cb (m³)</p>
+          <p class="mt-2 text-xs text-gray-600">Stability criteria: GM &gt; 0.15 m = Stable, 0 &lt; GM ≤ 0.15 m = Marginal, GM ≤ 0 = Unstable</p>
+        </div>
+      </details>
+    </section>
+  </div>
+
+  <script>
+    const ns = 'http://www.w3.org/2000/svg';
+
+    function svgEl(tag, attrs, text) {
+      const e = document.createElementNS(ns, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+      if (text !== undefined) e.textContent = text;
+      return e;
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+    function clearError() {
+      document.getElementById('error-msg').classList.add('hidden');
+    }
+
+    function addDetailRow(tbody, param, formula, value, unit) {
+      const tr = document.createElement('tr');
+      tr.className = 'hover:bg-gray-800/40';
+
+      const tdP = document.createElement('td');
+      tdP.className = 'py-2 font-bold text-blue-300';
+      tdP.textContent = param;
+
+      const tdF = document.createElement('td');
+      tdF.className = 'py-2 text-gray-500 text-xs font-mono';
+      tdF.textContent = formula;
+
+      const tdV = document.createElement('td');
+      tdV.className = 'py-2 text-right font-bold text-white';
+      tdV.textContent = value;
+
+      const tdU = document.createElement('td');
+      tdU.className = 'py-2 pl-3 text-gray-500 text-xs';
+      tdU.textContent = unit;
+
+      tr.appendChild(tdP);
+      tr.appendChild(tdF);
+      tr.appendChild(tdV);
+      tr.appendChild(tdU);
+      tbody.appendChild(tr);
+    }
+
+    function drawHull(B, T, KB, KM, VCG, GM) {
+      const svg = document.getElementById('hull-svg');
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+      const vW = 280, vH = 240;
+      const margin = 40;
+      const scale = Math.min((vW - 2 * margin) / B, (vH - 2 * margin - 40) / (T + 4));
+      const bPx = B * scale;
+      const tPx = T * scale;
+
+      const cx = vW / 2;
+      const waterlineY = 80; // Y position of waterline
+      const keelY = waterlineY + tPx;
+
+      const x0 = cx - bPx / 2;
+
+      // Water fill
+      svg.appendChild(svgEl('rect', { x: 0, y: waterlineY, width: vW, height: vH - waterlineY, fill: '#1e3a5f', opacity: 0.6 }));
+
+      // Hull rectangle (submerged part)
+      svg.appendChild(svgEl('rect', { x: x0, y: waterlineY, width: bPx, height: tPx, fill: '#374151', stroke: '#9ca3af', 'stroke-width': 2 }));
+
+      // Waterline indicator
+      svg.appendChild(svgEl('line', { x1: 0, y1: waterlineY, x2: vW, y2: waterlineY, stroke: '#38bdf8', 'stroke-width': 1.5, 'stroke-dasharray': '5,3' }));
+      svg.appendChild(svgEl('text', { x: 5, y: waterlineY - 4, fill: '#38bdf8', 'font-size': 9, 'font-family': 'monospace' }, 'WL'));
+
+      // K (keel)
+      svg.appendChild(svgEl('text', { x: cx + bPx / 2 + 6, y: keelY + 4, fill: '#9ca3af', 'font-size': 9, 'font-family': 'monospace' }, 'K'));
+
+      // B (centre of buoyancy)
+      const bY = waterlineY + (T - KB) * scale;
+      svg.appendChild(svgEl('circle', { cx, cy: bY, r: 5, fill: '#06b6d4', stroke: '#fff', 'stroke-width': 1 }));
+      svg.appendChild(svgEl('text', { x: cx + 8, y: bY + 4, fill: '#06b6d4', 'font-size': 9, 'font-family': 'monospace' }, 'B (KB=' + KB.toFixed(2) + 'm)'));
+
+      // G (centre of gravity)
+      const gY = keelY - VCG * scale;
+      svg.appendChild(svgEl('circle', { cx, cy: gY, r: 5, fill: '#f59e0b', stroke: '#fff', 'stroke-width': 1 }));
+      svg.appendChild(svgEl('text', { x: cx + 8, y: gY + 4, fill: '#f59e0b', 'font-size': 9, 'font-family': 'monospace' }, 'G (VCG=' + VCG.toFixed(2) + 'm)'));
+
+      // M (metacentre)
+      const mY = keelY - KM * scale;
+      const mColor = GM > 0.15 ? '#4ade80' : GM > 0 ? '#fbbf24' : '#f87171';
+      svg.appendChild(svgEl('circle', { cx, cy: mY, r: 5, fill: mColor, stroke: '#fff', 'stroke-width': 1 }));
+      svg.appendChild(svgEl('text', { x: cx + 8, y: mY + 4, fill: mColor, 'font-size': 9, 'font-family': 'monospace' }, 'M (KM=' + KM.toFixed(2) + 'm)'));
+
+      // GM line
+      if (gY !== mY) {
+        svg.appendChild(svgEl('line', { x1: cx, y1: gY, x2: cx, y2: mY, stroke: mColor, 'stroke-width': 1.5, 'stroke-dasharray': '3,2' }));
+        const midGMY = (gY + mY) / 2;
+        svg.appendChild(svgEl('text', { x: cx + 10, y: midGMY, fill: mColor, 'font-size': 8, 'font-family': 'monospace' }, 'GM=' + Math.abs(GM).toFixed(2) + 'm' + (GM < 0 ? ' ⚠' : '') }));
+      }
+
+      // Keel line label
+      svg.appendChild(svgEl('line', { x1: x0, y1: keelY, x2: x0 + bPx, y2: keelY, stroke: '#9ca3af', 'stroke-width': 1 }));
+      svg.appendChild(svgEl('text', { x: cx, y: keelY + 14, fill: '#9ca3af', 'font-size': 9, 'font-family': 'monospace', 'text-anchor': 'middle' }, 'B = ' + B + ' m'));
+
+      // Draft label (vertical)
+      svg.appendChild(svgEl('text', { x: x0 - 6, y: waterlineY + tPx / 2, fill: '#9ca3af', 'font-size': 9, 'font-family': 'monospace', 'text-anchor': 'middle', transform: 'rotate(-90,' + (x0 - 6) + ',' + (waterlineY + tPx / 2) + ')' }, 'T = ' + T + ' m'));
+
+      // Legend
+      const legendY = vH - 25;
+      [
+        { cx: 12, color: '#06b6d4', label: 'B = Centre of Buoyancy' },
+        { cx: 12, color: '#f59e0b', label: 'G = Centre of Gravity', offsetX: 120 },
+        { cx: 12, color: mColor, label: 'M = Metacentre', offsetX: 0, row: 1 },
+      ].forEach((item, i) => {
+        const row = item.row ? 1 : 0;
+        const col = item.offsetX !== undefined ? item.offsetX : 0;
+        const lx = col + 10;
+        const ly = legendY + row * 14;
+        svg.appendChild(svgEl('circle', { cx: lx, cy: ly, r: 4, fill: item.color }));
+        svg.appendChild(svgEl('text', { x: lx + 8, y: ly + 4, fill: '#9ca3af', 'font-size': 8, 'font-family': 'monospace' }, item.label));
+      });
+    }
+
+    function drawGZ(GM) {
+      const svg = document.getElementById('gz-svg');
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+      const vW = 280, vH = 220;
+      const pad = { top: 20, right: 20, bottom: 40, left: 55 };
+      const plotW = vW - pad.left - pad.right;
+      const plotH = vH - pad.top - pad.bottom;
+
+      // Background
+      svg.appendChild(svgEl('rect', { x: pad.left, y: pad.top, width: plotW, height: plotH, fill: '#111827', rx: 4 }));
+
+      // Angle range 0–45 degrees
+      const angles = Array.from({ length: 46 }, (_, i) => i);
+      const gzValues = angles.map(deg => GM * Math.sin(deg * Math.PI / 180));
+
+      const maxGZ = Math.max(...gzValues.map(Math.abs), 0.5);
+      const minGZ = Math.min(...gzValues, -0.1);
+      const rangeGZ = maxGZ - minGZ;
+
+      function xPx(deg) { return pad.left + (deg / 45) * plotW; }
+      function yPx(gz) { return pad.top + plotH - ((gz - minGZ) / rangeGZ) * plotH; }
+
+      // Zero line
+      const zeroY = yPx(0);
+      svg.appendChild(svgEl('line', { x1: pad.left, y1: zeroY, x2: pad.left + plotW, y2: zeroY, stroke: '#374151', 'stroke-width': 1 }));
+
+      // Grid lines (vertical every 15°)
+      [0, 15, 30, 45].forEach(deg => {
+        const x = xPx(deg);
+        svg.appendChild(svgEl('line', { x1: x, y1: pad.top, x2: x, y2: pad.top + plotH, stroke: '#1f2937', 'stroke-width': 1 }));
+        svg.appendChild(svgEl('text', { x, y: pad.top + plotH + 14, fill: '#6b7280', 'font-size': 9, 'font-family': 'monospace', 'text-anchor': 'middle' }, deg + '°'));
+      });
+
+      // Axis labels
+      svg.appendChild(svgEl('text', { x: pad.left + plotW / 2, y: vH - 2, fill: '#6b7280', 'font-size': 9, 'font-family': 'monospace', 'text-anchor': 'middle' }, 'Heel angle θ (°)'));
+
+      // GZ axis labels
+      [minGZ, 0, maxGZ].forEach(gz => {
+        const y = yPx(gz);
+        svg.appendChild(svgEl('text', { x: pad.left - 5, y: y + 3, fill: '#6b7280', 'font-size': 8, 'font-family': 'monospace', 'text-anchor': 'end' }, gz.toFixed(2)));
+      });
+
+      // Y axis title
+      svg.appendChild(svgEl('text', {
+        x: 12, y: pad.top + plotH / 2,
+        fill: '#9ca3af', 'font-size': 9, 'font-family': 'monospace',
+        'text-anchor': 'middle',
+        transform: 'rotate(-90,12,' + (pad.top + plotH / 2) + ')',
+      }, 'GZ (m)'));
+
+      // GZ curve
+      const lineColor = GM > 0.15 ? '#4ade80' : GM > 0 ? '#fbbf24' : '#f87171';
+      const points = angles.map(deg => xPx(deg) + ',' + yPx(gzValues[deg])).join(' ');
+      svg.appendChild(svgEl('polyline', { points, fill: 'none', stroke: lineColor, 'stroke-width': 2.5, 'stroke-linejoin': 'round' }));
+
+      // Fill area under curve
+      const fillPoints = xPx(0) + ',' + zeroY + ' ' + points + ' ' + xPx(45) + ',' + zeroY;
+      svg.appendChild(svgEl('polygon', { points: fillPoints, fill: lineColor, opacity: 0.15 }));
+
+      // GM annotation
+      const gmText = 'GM = ' + GM.toFixed(3) + ' m';
+      svg.appendChild(svgEl('text', { x: pad.left + plotW - 5, y: pad.top + 14, fill: lineColor, 'font-size': 9, 'font-family': 'monospace', 'text-anchor': 'end' }, gmText));
+
+      // Axes
+      svg.appendChild(svgEl('line', { x1: pad.left, y1: pad.top, x2: pad.left, y2: pad.top + plotH, stroke: '#4b5563', 'stroke-width': 1 }));
+      svg.appendChild(svgEl('line', { x1: pad.left, y1: pad.top + plotH, x2: pad.left + plotW, y2: pad.top + plotH, stroke: '#4b5563', 'stroke-width': 1 }));
+    }
+
+    document.getElementById('btn-calc').addEventListener('click', () => {
+      clearError();
+      document.getElementById('results-section').classList.add('hidden');
+
+      const B = parseFloat(document.getElementById('beam').value);
+      const T = parseFloat(document.getElementById('draft').value);
+      const L = parseFloat(document.getElementById('length').value);
+      const Cb = parseFloat(document.getElementById('cb').value);
+      const VCG = parseFloat(document.getElementById('vcg').value);
+
+      if ([B, T, L, Cb, VCG].some(isNaN)) { showError('All fields must be numeric.'); return; }
+      if (B <= 0 || T <= 0 || L <= 0) { showError('Beam, Draft, and Length must be positive.'); return; }
+      if (Cb <= 0 || Cb > 1) { showError('Block coefficient must be between 0 and 1.'); return; }
+      if (VCG < 0) { showError('VCG must be non-negative (measured from keel upward).'); return; }
+
+      // ── Calculations ──────────────────────────────────────────────────────
+      const KB = T / 2;
+      // For box hull: I_WP = L*B^3/12, V = L*B*T*Cb → BM = B^2/(12*T*Cb)
+      // For pure box (Cb=1): BM = B^2/(12*T) per spec; we use general form
+      const BM = (B * B) / (12 * T * Cb);
+      const KM = KB + BM;
+      const GM = KM - VCG;
+      const displacement = L * B * T * Cb; // m³ (volume, density not needed for stability ratios)
+      const displacement_t = displacement * 1.025; // tonnes (seawater density)
+
+      // Classification
+      let statusText, statusClass, gmClass;
+      if (GM > 0.15) {
+        statusText = 'STABLE — GM = ' + GM.toFixed(3) + ' m (> 0.15 m)';
+        statusClass = 'bg-green-900 border border-green-700 text-green-300';
+        gmClass = 'text-green-300';
+      } else if (GM > 0) {
+        statusText = 'MARGINAL — GM = ' + GM.toFixed(3) + ' m (0 < GM ≤ 0.15 m)';
+        statusClass = 'bg-yellow-900 border border-yellow-700 text-yellow-300';
+        gmClass = 'text-yellow-300';
+      } else {
+        statusText = 'UNSTABLE — GM = ' + GM.toFixed(3) + ' m (≤ 0)';
+        statusClass = 'bg-red-900 border border-red-700 text-red-300';
+        gmClass = 'text-red-400';
+      }
+
+      const badge = document.getElementById('status-badge');
+      badge.textContent = statusText;
+      badge.className = 'mb-4 px-5 py-4 rounded-xl text-center text-base font-bold ' + statusClass;
+
+      document.getElementById('res-kb').textContent = KB.toFixed(4) + ' m';
+      document.getElementById('res-bm').textContent = BM.toFixed(4) + ' m';
+      document.getElementById('res-km').textContent = KM.toFixed(4) + ' m';
+      const gmEl = document.getElementById('res-gm');
+      gmEl.textContent = GM.toFixed(4) + ' m';
+      gmEl.className = 'text-2xl font-bold ' + gmClass;
+
+      // Detail table
+      const tbody = document.getElementById('detail-tbody');
+      while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+
+      addDetailRow(tbody, 'KB', 'T / 2', KB.toFixed(4), 'm');
+      addDetailRow(tbody, 'BM', 'B² / (12·T·Cb)', BM.toFixed(4), 'm');
+      addDetailRow(tbody, 'KM', 'KB + BM', KM.toFixed(4), 'm');
+      addDetailRow(tbody, 'VCG', 'Input', VCG.toFixed(4), 'm');
+      addDetailRow(tbody, 'GM', 'KM − VCG', GM.toFixed(4), 'm');
+      addDetailRow(tbody, 'Displacement ∇', 'L·B·T·Cb', displacement.toFixed(2), 'm³');
+      addDetailRow(tbody, 'Displacement', '∇ × 1.025', displacement_t.toFixed(1), 't');
+      addDetailRow(tbody, 'B/T ratio', 'B / T', (B / T).toFixed(3), '—');
+      addDetailRow(tbody, 'GZ at 10°', 'GM·sin(10°)', (GM * Math.sin(10 * Math.PI / 180)).toFixed(4), 'm');
+      addDetailRow(tbody, 'GZ at 30°', 'GM·sin(30°)', (GM * 0.5).toFixed(4), 'm');
+      addDetailRow(tbody, 'GZ at 45°', 'GM·sin(45°)', (GM * Math.sin(Math.PI / 4)).toFixed(4), 'm');
+
+      document.getElementById('results-section').classList.remove('hidden');
+      drawHull(B, T, KB, KM, VCG, GM);
+      drawGZ(GM);
+    });
+
+    // Auto-calculate on load
+    document.getElementById('btn-calc').click();
+  </script>
+</body>
+</html>
